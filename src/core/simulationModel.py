@@ -270,7 +270,7 @@ class SimulationModel:
         Graph.plot(x=self.time, y=self.engine_state, color='chartjs_red', marker='', label='Engine state', axis_number=1)
         # Graph.show(dx=0.2, dy=1.15, ncol=2)
         Graph.save(filename=f'output/{self.current_type}/SOC_state', ncol=2, dy=1.15, dx=0.2)
-        Graph.delete()
+        Graph.delete() #test
         
         # Fuel and CO2 emissions
         Graph = Graph_1D(figsize=(5, 4), fontsize=11)
