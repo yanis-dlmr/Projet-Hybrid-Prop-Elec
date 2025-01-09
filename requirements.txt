@@ -1,0 +1,5 @@
+dlmr_tools
+numpy
+matplotlib
+scipy==1.13.0
+openpyxl
