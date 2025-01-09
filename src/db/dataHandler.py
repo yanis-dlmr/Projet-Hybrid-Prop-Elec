@@ -27,7 +27,6 @@ class DataHandler:
         
         self.__data: dict = {}
         
-        print(f"Importing data from the sheet {sheet_name}")
         self.__data["time"] = self.__spreadsheet.get_list(sheet_name=sheet_name, list_name="Time")
         self.__data["speed"] = self.__spreadsheet.get_list(sheet_name=sheet_name, list_name="Speed")
             
@@ -44,7 +43,6 @@ class DataHandler:
         total_time: np.ndarray = np.zeros(0)
         for i in range(number_of_cycles):
             total_time = np.append(total_time, single_time + single_time[-1] * i)
-        print(f"Total time: {total_time}")
         return total_time
     
     def get_speed(self, number_of_cycles: int) -> np.ndarray:

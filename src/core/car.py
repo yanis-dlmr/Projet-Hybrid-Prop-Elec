@@ -20,9 +20,9 @@ class Car:
     
     N_CELLS: int = 84
     # BATTERY_INITIAL_SOC: float = 0.95 #0.22 # 0.95
+    TH_ENGINE_MINIMAL_TIME_ON: float = 10 # s
+    BATTERY_SOC_RANGE: float = 0.005
     BATTERY_TARGET_SOC: float = 0.22
-    BATTERY_SOC_MIN: float = 0.19
-    BATTERY_SOC_MAX: float = 0.95
     BATTERY_CELL_CAPACITY: float = 40 # Ah
     
     EMOTOR2_OPTIMAL_RPM: float = 3000 # RPM
@@ -32,7 +32,7 @@ class Car:
     
     def __init__(self, dataHandler: DataHandler, type: str) -> None:
         self.__dataHandler = dataHandler
-        self.__type = type
+        self.type = type
         
         if type == "CD":
             self.BATTERY_INITIAL_SOC = 0.95

@@ -1,16 +1,20 @@
+import configparser
+
 from src import SimulationModel
 
 
-if __name__ == '__main__':
-    simulationModel: SimulationModel = SimulationModel()
+def load_config():
+    config = configparser.ConfigParser()
+    config.read('config.ini')
+    return config
+
+def run():
+    config = load_config()
+    print(config.sections())
+    print(config['drag']['F2'])
+    return
+    simulationModel = SimulationModel()
     simulationModel.run()
 
-
-""" 
-Couple à fournir:
-
-ICE fuel consumption 
-RPM donné doit choisir le couple
-
-couple à fournir = couple moteur thermique optimal + couple moteur électrique déduit ?
-"""
+if __name__ == '__main__':
+    run()

@@ -32,7 +32,6 @@ class SimulationModel:
     def process_data(self) -> None:
         self.time: np.ndarray = self.__dataHandler.get_time(number_of_cycles=configuration[f'number_of_{self.current_type}_cycles'])
         self.speed: np.ndarray = self.__dataHandler.get_speed(number_of_cycles=configuration[f'number_of_{self.current_type}_cycles'])
-        print(len(self.time), len(self.speed))
         self.WLTP_Ufi: tuple = self.__dataHandler.get_WLTP_Ufi()
         
         computations: list[callable] = [ 
@@ -98,17 +97,20 @@ class SimulationModel:
     
     def compute_power_consumption(self) -> None:
         """Compute the power consumption of the vehicle in W"""
-        self.electric_power: np.ndarray = np.zeros(len(self.time))
+        self.mecanical_power: np.ndarray = np.zeros(len(self.time))
         self.eMotor_efficiency: np.ndarray = np.zeros(len(self.time))
         self.power_consumption: np.ndarray = np.zeros(len(self.time))
         for i in range(len(self.time)):
-            self.electric_power[i] = self.real_torque[i] * self.motor_rpm[i] * 2 * np.pi / 60
+            self.mecanical_power[i] = self.real_torque[i] * self.motor_rpm[i] * 2 * np.pi / 60
             self.eMotor_efficiency[i] = self.__car.eMotor_efficiency(RPM=self.motor_rpm[i], MTE=self.real_torque[i])
             
             if self.eMotor_efficiency[i] == 0:
                 self.power_consumption[i] = self.__car.AUXILIARY_POWER
             else:
-                self.power_consumption[i] = self.electric_power[i] / self.eMotor_efficiency[i] + self.__car.AUXILIARY_POWER
+                if self.real_torque[i] >= 0: #traction
+                    self.power_consumption[i] = self.mecanical_power[i] / self.eMotor_efficiency[i] + self.__car.AUXILIARY_POWER
+                else: #regen
+                    self.power_consumption[i] = self.mecanical_power[i] * self.eMotor_efficiency[i] + self.__car.AUXILIARY_POWER
 
 
     def compute_battery_thermal_motor_usage(self) -> None:
@@ -126,8 +128,6 @@ class SimulationModel:
         
         
         ########### THERMAL SIDE ###########
-        minimal_time_on: float = 60 # s
-        
         self.engine_state: np.ndarray = np.zeros(len(self.time))
         self.engine_cumulative_time: np.ndarray = np.zeros(len(self.time))
         self.remaining_power: np.ndarray = np.zeros(len(self.time))
@@ -155,13 +155,13 @@ class SimulationModel:
                 prev_i = i - 1
                 ########### THERMAL SIDE ###########
                 # Check if the engine should stay on due to minimal runtime
-                if (self.engine_state[i-1] == 1) and (self.engine_cumulative_time[i-1] < minimal_time_on):
+                if (self.engine_state[i-1] == 1) and (self.engine_cumulative_time[i-1] < self.__car.TH_ENGINE_MINIMAL_TIME_ON):
                     self.engine_state[i] = 1
                 # Turn off the engine if the battery SOC is above the target threshold
-                elif self.battery_SOC[prev_i] > self.__car.BATTERY_TARGET_SOC + 0.03:
+                elif self.battery_SOC[prev_i] > self.__car.BATTERY_TARGET_SOC + self.__car.BATTERY_SOC_RANGE:
                     self.engine_state[i] = 0
                 # Turn on the engine if the battery SOC is below the target threshold
-                elif self.battery_SOC[prev_i] <= self.__car.BATTERY_TARGET_SOC - 0.03:
+                elif self.battery_SOC[prev_i] <= self.__car.BATTERY_TARGET_SOC - self.__car.BATTERY_SOC_RANGE:
                     self.engine_state[i] = 1
                 # Default behavior
                 else:
@@ -226,7 +226,7 @@ class SimulationModel:
                 self.battery_SOC[i] = self.battery_SOC[prev_i] - self.battery_intensity[prev_i] / (3600 * self.__car.BATTERY_CELL_CAPACITY) * (self.time[i] - self.time[prev_i])
             
             # Battery state
-            battery_on: bool = (self.battery_SOC[i] > self.__car.BATTERY_SOC_MIN) and (self.real_torque[i] > 0)
+            battery_on: bool = self.remaining_power_for_battery[i] > 0
             self.battery_state[i] = 1 if battery_on else 0
             if self.battery_state[prev_i] == self.battery_state[i]:
                 # Never exceed 30 seconds in order to interpolate the internal resistance
@@ -250,6 +250,8 @@ class SimulationModel:
         self.instantaneous_CO2_emissions: np.ndarray = np.zeros(len(self.time))
         self.cumulative_CO2_emissions: np.ndarray = np.zeros(len(self.time))
         
+        first_restart: bool = False
+        
         for i in range(len(self.time)):
             if i == 0:
                 self.instantaneous_CO2_emissions[i] = COLD_START + CAR_HEATING + self.instantaneous_fuel_consumption[i] * CO2_MASS_OVER_FUEL_MASS * (1 + DYNAMISQUE_ICE) * (self.time[i] - self.time[i-1])
@@ -258,7 +260,14 @@ class SimulationModel:
                 self.instantaneous_CO2_emissions[i] = self.instantaneous_fuel_consumption[i] * CO2_MASS_OVER_FUEL_MASS * (1 + DYNAMISQUE_ICE) * (self.time[i] - self.time[i-1])
                 if (self.engine_state[i] == 1) and (self.engine_state[i-1] == 0):
                     self.instantaneous_CO2_emissions[i] += RESTART
+                    if first_restart == False:
+                        first_restart = True
+                        logger.info(f"First restart {self.__car.type} at {self.time[i]} s and {self.distance[i]} m")
                 self.cumulative_CO2_emissions[i] = self.cumulative_CO2_emissions[i-1] + self.instantaneous_CO2_emissions[i]
+        logger.info(f"Total fuel consumption {self.__car.type}: {self.cumulative_fuel_consumption[-1]} g")
+        logger.info(f"Average fuel consumption {self.__car.type}: {self.cumulative_fuel_consumption[-1] / self.distance[-1] * 1000} g/km")
+        logger.info(f"Total CO2 emissions {self.__car.type}: {self.cumulative_CO2_emissions[-1]} g")
+        logger.info(f"Average CO2 emissions {self.__car.type}: {self.cumulative_CO2_emissions[-1] / self.distance[-1] * 1000} g/km")
 
     def plot_results(self) -> None:
         # SOC and engine state
@@ -272,15 +281,12 @@ class SimulationModel:
         Graph.save(filename=f'output/{self.current_type}/SOC_state', ncol=2, dy=1.19, dx=0.3)
         Graph.delete() #test
         
-        # Fuel and CO2 emissions
+        # CO2 emissions
         Graph = Graph_1D(figsize=(5, 4), fontsize=11)
-        Graph.setup_axis(xlabel='Time [s]', ylabel='Fuel consumption [g]', sci=False)
-        Graph.plot(x=self.time, y=self.cumulative_fuel_consumption, color='chartjs_blue', marker='', label='Cumulative fuel consumption')
-        Graph.add_axis()
-        Graph.setup_secondary_axis(ylabel='CO2 emissions [g]', sci=False)
-        Graph.plot(x=self.time, y=self.cumulative_CO2_emissions, color='chartjs_red', marker='', label='Cumulative CO2 emissions', axis_number=1)
+        Graph.setup_axis(xlabel='Time [s]', ylabel='CO2 emissions [g]', sci=False)
+        Graph.plot(x=self.time, y=self.cumulative_CO2_emissions, color='chartjs_purple', marker='', label='Cumulative CO2 emissions')
         # Graph.show(dx=0.2, dy=1.15, ncol=2)
-        Graph.save(filename=f'output/{self.current_type}/Fuel_CO2', ncol=2, dy=1.15, dx=0.2)
+        Graph.save(filename=f'output/{self.current_type}/CO2', ncol=2, dy=1.15, dx=0.2)
         Graph.delete()
         
         # eMotor 2
@@ -308,9 +314,27 @@ class SimulationModel:
         # eMotor 1
         Graph = Graph_1D(figsize=(10, 4), fontsize=11)
         Graph.setup_axis(xlabel='Time [s]', ylabel='Power consumption [W]', sci=False)
-        smoothed_curve = np.convolve(self.power_consumption, np.ones(20)/20, mode='same')
-        Graph.plot(x=self.time, y=smoothed_curve, color='chartjs_blue', marker='', label='Power consumption by eMotor1', linestyle='-')
+        smoothed_curve = np.convolve(self.power_consumption, np.ones(10)/10, mode='same')
+        Graph.plot(x=self.time[:1800], y=smoothed_curve[:1800], color='chartjs_blue', marker='', label='Power consumption by eMotor1', linestyle='-')
         Graph.save(filename=f'output/{self.current_type}/eMoror1_power', ncol=2, dy=1.15, dx=0.2)
+        Graph.delete()
+        
+        # eMotor_efficiency
+        Graph = Graph_1D(figsize=(10, 4), fontsize=11)
+        Graph.setup_axis(xlabel='Time [s]', ylabel='Efficiency [-]', sci=False)
+        Graph.plot(x=self.time[:1800], y=self.eMotor_efficiency[:1800], color='chartjs_blue', marker='', label='eMotor efficiency', linestyle='-')
+        Graph.save(filename=f'output/{self.current_type}/eMotor_efficiency', ncol=2, dy=1.15, dx=0.2)
+        Graph.delete()
+        
+        # torque
+        Graph = Graph_1D(figsize=(10, 4), fontsize=11)
+        Graph.setup_axis(xlabel='Time [s]', ylabel='Torque [Nm]', sci=False, ymin=-100, ymax=100)
+        Graph.plot(x=self.time[:1800], y=self.real_torque[:1800], color='chartjs_pink', marker='', label='Real Torque', linestyle='-')
+        # reduction loss
+        Graph.add_axis()
+        Graph.setup_secondary_axis(ylabel='Reduction Loss [W]', sci=False, ymin=-1500, ymax=1500)
+        Graph.plot(x=self.time[:1800], y=self.reduction_loss[:1800], color='chartjs_purple', marker='', label='Reduction Loss', axis_number=1)
+        Graph.save(filename=f'output/{self.current_type}/Torque', ncol=2, dy=1.15, dx=0.2)
         Graph.delete()
         
         # remaining_power_for_battery
@@ -361,7 +385,8 @@ class SimulationModel:
         """Save the results of the simulation in a CSV file"""
         path: str = "results.csv"
         with open(path, "w") as file:
-            file.write("Time,Speed,Distance,Acceleration,Motor RPM,Ideal Torque,Reduction Loss,Real Torque,Electric Power,eMotor Efficiency,Power Consumption,Battery Internal Resistance,Battery Intensity,Battery OCV,Battery Tension,Battery SOC,Battery Usage Duration,Battery Pulse Duration\n")
+            file.write("Time;Speed;Distance;Acceleration;Motor RPM;Ideal Torque;Reduction Loss;Real Torque;Electric Power;eMotor Efficiency;Power Consumption;Battery Internal Resistance;Battery Intensity;Battery OCV;Battery Tension;Battery SOC;Battery Usage Duration;Battery Pulse Duration\n")
             for i in range(len(self.time)):
-                file.write(f"{self.time[i]},{self.speed[i]},{self.distance[i]},{self.acceleration[i]},{self.motor_rpm[i]},{self.ideal_torque[i]},{self.reduction_loss[i]},{self.real_torque[i]},{self.electric_power[i]},{self.eMotor_efficiency[i]},{self.power_consumption[i]},{self.battery_internal_resistance[i]},{self.battery_intensity[i]},{self.battery_OCV[i]},{self.battery_tension[i]},{self.battery_SOC[i]},{self.battery_usage_duration[i]},{self.battery_pulse_duration[i]}\n")
+                file.write(f"{self.time[i]:.2f};{self.speed[i]:.2f};{self.distance[i]:.2f};{self.acceleration[i]:.2f};{self.motor_rpm[i]:.2f};{self.ideal_torque[i]:.2f};{self.reduction_loss[i]:.2f};{self.real_torque[i]:.2f};{self.mecanical_power[i]:.2f};{self.eMotor_efficiency[i]:.2f};{self.power_consumption[i]:.2f};{self.battery_internal_resistance[i]:.2f};{self.battery_intensity[i]:.2f};{self.battery_OCV[i]:.2f};{self.battery_tension[i]:.2f};{self.battery_SOC[i]:.2f};{self.battery_usage_duration[i]:.2f};{self.battery_pulse_duration[i]:.2f}\n".replace('.', ','))
+
             file.close()
