@@ -269,7 +269,7 @@ class SimulationModel:
         Graph.setup_secondary_axis(ylabel='Engine state [-]', sci=False)
         Graph.plot(x=self.time, y=self.engine_state, color='chartjs_red', marker='', label='Engine state', axis_number=1)
         # Graph.show(dx=0.2, dy=1.15, ncol=2)
-        Graph.save(filename=f'output/{self.current_type}/SOC_state', ncol=2, dy=1.15, dx=0.2)
+        Graph.save(filename=f'output/{self.current_type}/SOC_state', ncol=2, dy=1.19, dx=0.3)
         Graph.delete() #test
         
         # Fuel and CO2 emissions
@@ -290,6 +290,9 @@ class SimulationModel:
         power_thermal_engine = self.power_provided_by_thermal_engine / self.__car.EL2_efficiency
         Graph.plot(x=self.time, y=power_thermal_engine, color='chartjs_red', marker='', label='Power provided by thermal engine', linestyle='-')
         Graph.plot(x=self.time, y=self.power_provided_by_thermal_engine, color='chartjs_orange', marker='', label='Power provided by eMotor2', linestyle='-')
+        Graph.add_axis()
+        Graph.setup_secondary_axis(ylabel='Fuel consumption [g]', sci=False)
+        Graph.plot(x=self.time, y=self.cumulative_fuel_consumption, color='chartjs_green', marker='', label='Cumulative fuel consumption', axis_number=1)
         # Graph.show(dx=0.2, dy=1.15, ncol=2)
         Graph.save(filename=f'output/{self.current_type}/eMoror2_power', ncol=2, dy=1.19, dx=0.15)
         Graph.delete()
