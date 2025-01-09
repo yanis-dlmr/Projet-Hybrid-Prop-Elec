@@ -2,8 +2,9 @@
 *__pycache__/
 *__pypackages__/
 
-# Output
-output
+# Assets and output
+*.png
+output/assets
 
 # Environments
 .venv
