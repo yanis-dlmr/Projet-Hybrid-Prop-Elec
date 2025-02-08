@@ -1,6 +1,4 @@
-Collecting workspace information
-
-# Project Title
+# Project powertrain hybrid
 
 This project simulates the performance of a hybrid vehicle under various conditions and configurations. It includes parametric studies to analyze the impact of different parameters on the vehicle's performance.
 
