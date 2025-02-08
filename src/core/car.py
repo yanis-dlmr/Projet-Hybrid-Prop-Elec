@@ -7,37 +7,43 @@ __all__ = [ 'Car' ]
 
 @dataclass
 class Car:
-    THERMAL_ENGINE_PRESENCE: bool = True
+    WHEEL_RADIUS: float = None # m
+    DEMULTIPLICATION: int = None
+    WEIGHT: float = None # kg
+    GRAVITY: float = None # m/s^2
+    AUXILIARY_POWER: float = None # W
+    THERMAL_ENGINE_PRESENCE: bool = None
     
-    WHEEL_RADIUS: float = 0.35 # m
-    DEMULTIPLICATION: int = 11
-    F0: float = 150 # N
-    F1: float = 0.0 * 3.6 # N/mps
-    F2: float = 0.0477 * 3.6**2 # N/mps^2
-    WEIGHT: float = 1800 # kg
-    AUXILIARY_POWER: float = 300 # W
-    GRAVITY: float = 9.81 # m/s^2
+    N_CELLS: int = None
+    CD_INITIAL_SOC: float = None
+    CS_INITIAL_SOC: float = None
+    RANGE_SOC: float = None
+    TARGET_SOC: float = None
+    CELL_CAPACITY: float = None # Ah
     
-    N_CELLS: int = 84
-    # BATTERY_INITIAL_SOC: float = 0.95 #0.22 # 0.95
-    TH_ENGINE_MINIMAL_TIME_ON: float = 10 # s
-    BATTERY_SOC_RANGE: float = 0.005
-    BATTERY_TARGET_SOC: float = 0.22
-    BATTERY_CELL_CAPACITY: float = 40 # Ah
+    F0: float = None # N
+    F1: float = None # N/mps
+    F2: float = None # N/mps^2
     
-    EMOTOR2_OPTIMAL_RPM: float = 3000 # RPM
-    EMOTOR2_OPTIMAL_CME: float = 130 # Nm
-    EL2_efficiency: float = 0.9 # [-]
+    TH_ENGINE_MINIMAL_TIME_ON: float = None # s
+    EMOTOR2_OPTIMAL_RPM: float = None # RPM
+    EMOTOR2_OPTIMAL_CME: float = None # Nm
+    EL2_efficiency: float = None # [-]
     
     
-    def __init__(self, dataHandler: DataHandler, type: str) -> None:
+    def __init__(self, config: dict, dataHandler: DataHandler, type: str) -> None:
+        for key, value in config.items():
+            for subKey, subValue in value.items():
+                if hasattr(self, subKey):
+                    setattr(self, subKey, subValue)
+        
         self.__dataHandler = dataHandler
         self.type = type
         
         if type == "CD":
-            self.BATTERY_INITIAL_SOC = 0.95
+            self.BATTERY_INITIAL_SOC = self.CD_INITIAL_SOC
         elif type == "CS":
-            self.BATTERY_INITIAL_SOC = 0.22
+            self.BATTERY_INITIAL_SOC = self.CS_INITIAL_SOC
     
     @property
     def WHEEL_PERIMETER(self) -> float:

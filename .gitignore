@@ -3,7 +3,7 @@
 *__pypackages__/
 
 # Assets and output
-*.png
+#*.png
 output/assets
 
 # Environments
